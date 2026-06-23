@@ -25,6 +25,9 @@ data/plugins/
 # SDK downloads (bundled .NET SDK + WebView2)
 Agent.Host/sdk/
 
+# 发布产物 (自包含 EXE 运行时)
+Agent.Launcher/
+
 # Bundled tools (user-managed)
 # nssm.exe 保留，由用户自行管理
 
