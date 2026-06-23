@@ -5,6 +5,7 @@
 using Agent.Core.Config;
 using Agent.Host;
 using Agent.Host.Endpoints;
+using Agent.Host.Ws;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
@@ -110,12 +111,16 @@ builder.Services.AddCors(options =>
     });
 });
 
+// WebSocket Hub
+builder.Services.AddSingleton<VegaWebSocketHub>();
+
 var app = builder.Build();
 
 // ─────────────────────────────────────────────────────────
 // 3. 中间件管道
 // ─────────────────────────────────────────────────────────
 app.UseCors();
+app.UseWebSockets();
 app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
@@ -156,6 +161,22 @@ app.MapPromptEndpoints();
 app.MapBrowserEndpoints();
 app.MapSessionEndpoints();
 app.MapLlmConfigEndpoints();
+
+// WebSocket 端点
+app.Map("/ws", async (HttpContext context, VegaWebSocketHub hub) =>
+{
+    if (context.WebSockets.IsWebSocketRequest)
+    {
+        var clientInfo = context.Request.Headers["User-Agent"].FirstOrDefault();
+        var socket = await context.WebSockets.AcceptWebSocketAsync();
+        await hub.HandleConnectionAsync(socket, clientInfo);
+    }
+    else
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("WebSocket connection required");
+    }
+});
 
 // ── Vega 重构新增端点: PaperCore 知识库 ──
 {
@@ -206,8 +227,20 @@ app.Lifetime.ApplicationStarted.Register(() =>
     Log.Information("  Ignorant Vega 已启动");
     var baseUrl = app.Urls.FirstOrDefault() ?? AppConstants.DefaultBaseUrl;
     Log.Information("  地址: {Url}", baseUrl);
+    Log.Information("  WebSocket: ws://localhost:7300/ws");
     Log.Information("  Swagger: {Url}/swagger", baseUrl);
     Log.Information("════════════════════════════════════════════════");
+    
+    // 启动 WebSocket 心跳
+    var hub = app.Services.GetRequiredService<VegaWebSocketHub>();
+    hub.StartHeartbeat();
+});
+
+// 应用停止时关闭 WebSocket Hub
+app.Lifetime.ApplicationStopping.Register(async () =>
+{
+    var hub = app.Services.GetRequiredService<VegaWebSocketHub>();
+    await hub.StopAsync();
 });
 
 app.Run();

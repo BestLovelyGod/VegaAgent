@@ -34,11 +34,13 @@ let state = {
     editingConfig: null,
     networkOnline: true,
     selectedHistory: new Set(),
+    wsConnected: false,
 };
 
 // 任务取消控制
 let currentAbortController = null;
 let isTaskRunning = false;
+let wsActiveSessionId = null; // WS 流式输出的活跃会话 ID
 
 const COLLAPSE_THRESHOLD = 500;
 
@@ -57,7 +59,195 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadLlmConfig();
     setupInputHandlers();
     startHostStatusMonitor();
+    
+    // 连接 WebSocket
+    connectWebSocket();
 });
+
+// ============================================================================
+// WebSocket 连接管理
+// ============================================================================
+
+let wsStreamBuffer = {}; // 按 sessionId 缓存流式数据
+let wsStreamBubble = {}; // 按 sessionId 缓存对应的 DOM 气泡
+
+function connectWebSocket() {
+    if (!window.vegaWs) {
+        console.warn('[WS] WebSocket 客户端未加载');
+        return;
+    }
+    
+    // 连接成功
+    window.vegaWs.on('connected', () => {
+        console.log('[WS] 已连接到 Host');
+        state.wsConnected = true;
+        updateHostStatus(true);
+    });
+    
+    // 断开连接
+    window.vegaWs.on('disconnected', () => {
+        console.log('[WS] 已断开连接');
+        state.wsConnected = false;
+        updateHostStatus(false);
+    });
+    
+    // 接收 LLM 流式数据
+    window.vegaWs.on('llm.stream', (data) => {
+        const { sessionId, delta } = data;
+        if (!wsStreamBuffer[sessionId]) {
+            wsStreamBuffer[sessionId] = '';
+        }
+        
+        if (delta?.content) {
+            wsStreamBuffer[sessionId] += delta.content;
+            
+            // 首次收到数据时创建气泡
+            if (!wsStreamBubble[sessionId]) {
+                wsStreamBubble[sessionId] = appendMessage('assistant', '', false, true);
+            }
+            
+            const contentEl = wsStreamBubble[sessionId].querySelector('.content');
+            if (contentEl) {
+                contentEl.textContent = wsStreamBuffer[sessionId];
+                const container = document.getElementById('chat-messages');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+    });
+    
+    // LLM 流结束
+    window.vegaWs.on('llm.stream.end', (data) => {
+        const { sessionId } = data;
+        const fullContent = wsStreamBuffer[sessionId] || '';
+        const bubble = wsStreamBubble[sessionId];
+        if (bubble) {
+            bubble.dataset.fullContent = fullContent;
+        }
+        delete wsStreamBuffer[sessionId];
+        delete wsStreamBubble[sessionId];
+        // WS 流结束 — 释放 taskRunning
+        if (wsActiveSessionId === sessionId) {
+            wsActiveSessionId = null;
+            setTaskRunning(false);
+            // 保存助手消息到会话
+            if (state.activeSessionId && fullContent) {
+                fetchApi(`${API_BASE}/api/sessions/${state.activeSessionId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: 'assistant', content: fullContent })
+                }).catch(e => console.error('保存消息失败:', e));
+            }
+        }
+    });
+    
+    // LLM 错误
+    window.vegaWs.on('llm.error', (data) => {
+        const { sessionId, error } = data;
+        console.error('[WS] LLM 错误:', error);
+        const bubble = wsStreamBubble[sessionId];
+        if (bubble) {
+            const contentEl = bubble.querySelector('.content');
+            if (contentEl) contentEl.textContent = `错误: ${error}`;
+        }
+        delete wsStreamBuffer[sessionId];
+        delete wsStreamBubble[sessionId];
+        if (wsActiveSessionId === sessionId) {
+            wsActiveSessionId = null;
+            setTaskRunning(false);
+        }
+    });
+    
+    // 任务状态更新
+    window.vegaWs.on('task.update', (data) => {
+        const { taskId, status, data: taskData } = data;
+        console.log(`[WS] 任务 ${taskId}: ${status}`);
+        if (taskData?.content) {
+            if (!wsStreamBuffer[taskId]) wsStreamBuffer[taskId] = '';
+            wsStreamBuffer[taskId] += taskData.content;
+            if (!wsStreamBubble[taskId]) {
+                wsStreamBubble[taskId] = appendMessage('assistant', '', false, true);
+            }
+            const contentEl = wsStreamBubble[taskId].querySelector('.content');
+            if (contentEl) {
+                contentEl.textContent = wsStreamBuffer[taskId];
+                const container = document.getElementById('chat-messages');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+    });
+    
+    // 任务完成
+    window.vegaWs.on('task.complete', (data) => {
+        const { taskId } = data;
+        console.log(`[WS] 任务 ${taskId} 完成`);
+        const fullContent = wsStreamBuffer[taskId] || '';
+        const bubble = wsStreamBubble[taskId];
+        if (bubble) bubble.dataset.fullContent = fullContent;
+        delete wsStreamBuffer[taskId];
+        delete wsStreamBubble[taskId];
+    });
+    
+    // 任务错误
+    window.vegaWs.on('task.error', (data) => {
+        const { taskId, error } = data;
+        console.error(`[WS] 任务 ${taskId} 错误:`, error);
+        const bubble = wsStreamBubble[taskId];
+        if (bubble) {
+            const contentEl = bubble.querySelector('.content');
+            if (contentEl) contentEl.textContent = `任务错误: ${error}`;
+        }
+        delete wsStreamBuffer[taskId];
+        delete wsStreamBubble[taskId];
+    });
+    
+    // 连接
+    window.vegaWs.connect();
+}
+
+function updateHostStatus(connected) {
+    const statusEl = document.getElementById('host-status');
+    const dotEl = document.getElementById('host-dot');
+    const textEl = document.getElementById('host-status-text');
+    
+    if (connected) {
+        statusEl.className = 'status-indicator connected';
+        textEl.textContent = '已连接';
+        state.coreStatus = 'running';
+    } else {
+        statusEl.className = 'status-indicator disconnected';
+        textEl.textContent = '未连接';
+        state.coreStatus = 'stopped';
+    }
+}
+
+function updateStreamContent(sessionId, content) {
+    // 查找当前流式输出的气泡
+    const container = document.getElementById('chat-messages');
+    const bubbles = container.querySelectorAll('.message.assistant .content');
+    const lastBubble = bubbles[bubbles.length - 1];
+    
+    if (lastBubble) {
+        lastBubble.textContent = content;
+        // 自动滚动
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
+function finalizeStreamContent(sessionId, content) {
+    // 查找当前流式输出的气泡并更新
+    const container = document.getElementById('chat-messages');
+    const bubbles = container.querySelectorAll('.message.assistant .content');
+    const lastBubble = bubbles[bubbles.length - 1];
+    
+    if (lastBubble) {
+        lastBubble.textContent = content;
+        // 更新 data-full-content 用于展开/收起
+        const messageEl = lastBubble.closest('.message');
+        if (messageEl) {
+            messageEl.dataset.fullContent = content;
+        }
+    }
+}
 
 // ============================================================================
 // 会话管理
@@ -212,6 +402,14 @@ function setTaskRunning(running) {
 }
 
 function cancelTask() {
+    // WS 模式：发送取消消息
+    if (wsActiveSessionId && window.vegaWs) {
+        window.vegaWs.send('llm.cancel', { sessionId: wsActiveSessionId });
+        delete wsStreamBuffer[wsActiveSessionId];
+        delete wsStreamBubble[wsActiveSessionId];
+        wsActiveSessionId = null;
+    }
+    // SSE 模式：abort fetch
     if (currentAbortController) {
         currentAbortController.abort();
         currentAbortController = null;
@@ -270,18 +468,25 @@ async function sendMessage() {
         setTaskRunning(true);
         currentAbortController = new AbortController();
         const response = await callLlmApiStream(content);
-        setTaskRunning(false);
         currentAbortController = null;
-        if (response) {
-            await fetchApi(`${API_BASE}/api/sessions/${state.activeSessionId}/messages`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'assistant', content: response })
-            });
-        } else if (!isTaskRunning) {
-            // 用户取消时不显示超时提示
+        
+        if (response?.wsMode) {
+            // WS 模式：保持 taskRunning=true，由 llm.stream.end 事件释放
+            wsActiveSessionId = response.sessionId;
         } else {
-            appendMessage('system', '发送超时，点击重试', true);
+            // SSE 模式：立即释放
+            setTaskRunning(false);
+            if (response) {
+                await fetchApi(`${API_BASE}/api/sessions/${state.activeSessionId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: 'assistant', content: response })
+                });
+            } else if (!isTaskRunning) {
+                // 用户取消时不显示超时提示
+            } else {
+                appendMessage('system', '发送超时，点击重试', true);
+            }
         }
     } catch (e) {
         console.error('发送消息失败:', e);
@@ -291,10 +496,31 @@ async function sendMessage() {
 
 // 流式调用 LLM API，实时更新 UI
 async function callLlmApiStream(content) {
-    const bubble = appendMessage('assistant', '', false, true); // 创建空的 assistant 气泡，返回 DOM 元素
-    const contentEl = bubble.querySelector('.content');
     let fullText = '';
     
+    // 优先使用 WebSocket（如果已连接）
+    if (state.wsConnected && window.vegaWs) {
+        const sessionId = state.activeSessionId || `ws-${Date.now()}`;
+        wsStreamBuffer[sessionId] = '';
+        
+        // 发送消息到 WebSocket — 气泡由 WS 事件处理器创建
+        const sent = window.vegaWs.send('llm.request', {
+            sessionId,
+            messages: [{ role: 'user', content }],
+            stream: true
+        });
+        
+        if (sent) {
+            // 返回特殊标记，告知调用方 WS 正在处理
+            return { wsMode: true, sessionId };
+        }
+        // send 失败，回退到 SSE
+        console.warn('[WS] 发送失败，回退到 SSE');
+    }
+    
+    // WebSocket 未连接，回退到 SSE
+    const bubble = appendMessage('assistant', '', false, true);
+    const contentEl = bubble.querySelector('.content');
     try {
         const res = await fetch(`${API_BASE}/v1/chat/completions`, {
             method: 'POST',
@@ -1049,11 +1275,20 @@ function simpleMarkdown(text) {
 // ============================================================================
 
 function startHostStatusMonitor() {
+    // 优先使用 WebSocket 状态（实时）
+    // 备用方案：每 30 秒轮询一次健康检查
     checkHostStatus();
-    setInterval(checkHostStatus, 5000);
+    setInterval(checkHostStatus, 30000);
 }
 
 async function checkHostStatus() {
+    // 如果 WebSocket 已连接，直接使用 WebSocket 状态
+    if (state.wsConnected) {
+        updateHostStatus(true);
+        return;
+    }
+    
+    // WebSocket 未连接，使用 HTTP 轮询
     const statusEl = document.getElementById('host-status');
     const dotEl = document.getElementById('host-dot');
     const textEl = document.getElementById('host-status-text');

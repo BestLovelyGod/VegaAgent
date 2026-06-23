@@ -10,6 +10,7 @@ using Agent.Core.Abstractions;
 using Agent.Core.LLM;
 using Agent.Core.Models;
 using Agent.Core.Planning;
+using Agent.Host.Ws;
 
 namespace Agent.Host.Endpoints;
 
@@ -17,6 +18,19 @@ public static class OpenAiEndpoints
 {
     private static readonly ConcurrentDictionary<string, List<LlmMessage>> _conversations = new();
     private const int MaxHistoryMessages = 50;
+
+    /// <summary>Fire-and-forget WebSocket 推送，捕获异常避免吞没</summary>
+    private static async Task PushWsSafe(Ws.VegaWebSocketHub hub, string sessionId, Agent.Core.Models.LlmStreamChunk chunk)
+    {
+        try
+        {
+            await hub.PushLlmChunkAsync(sessionId, chunk.DeltaContent, chunk.DeltaReasoningContent);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WS] LLM chunk 推送失败: {ex.Message}");
+        }
+    }
 
     public static void MapOpenAiEndpoints(this WebApplication app)
     {
@@ -40,6 +54,7 @@ public static class OpenAiEndpoints
             LlmConnector llm,
             AgentLoop agentLoop,
             IToolRegistry registry,
+            VegaWebSocketHub wsHub,
             HttpContext http,
             CancellationToken ct) =>
         {
@@ -79,7 +94,7 @@ public static class OpenAiEndpoints
             var lastUserMessage = history.LastOrDefault(m => m.Role == "user")?.Content ?? "";
 
             // 所有请求统一走 Agent Loop — 自动注入已注册工具 (SearchWeb, PowerShell 等)
-            return await HandleAgentLoopRequest(request, agentLoop, lastUserMessage, history, http, ct);
+            return await HandleAgentLoopRequest(request, agentLoop, lastUserMessage, history, sessionId, wsHub, http, ct);
         })
         .WithName("ChatCompletions")
         .WithDescription("聊天补全");
@@ -98,6 +113,8 @@ public static class OpenAiEndpoints
         AgentLoop agentLoop,
         string userMessage,
         List<LlmMessage> history,
+        string sessionId,
+        VegaWebSocketHub wsHub,
         HttpContext http,
         CancellationToken ct)
     {
@@ -130,8 +147,13 @@ public static class OpenAiEndpoints
                             model = streamModel,
                             choices = new[] { new { index = 0, delta, finish_reason = (string?)null } }
                         });
+                        
+                        // SSE 推送（保持向后兼容）
                         http.Response.WriteAsync($"data: {sseData}\n\n", ct).GetAwaiter().GetResult();
                         http.Response.Body.FlushAsync(ct).GetAwaiter().GetResult();
+                        
+                        // WebSocket 推送（新通道）- 使用 Fire-and-forget + 容错
+                        _ = PushWsSafe(wsHub, sessionId, chunk);
                     },
                     ct: ct);
 
@@ -160,6 +182,9 @@ public static class OpenAiEndpoints
                 await http.Response.WriteAsync($"data: {doneData}\n\n", ct);
                 await http.Response.WriteAsync("data: [DONE]\n\n", ct);
 
+                // WebSocket 推送流结束
+                _ = wsHub.PushLlmStreamEndAsync(sessionId);
+
                 // 使用 AgentLoop 返回的完整消息历史 (保留 reasoning_content + tool_calls)
                 if (result.Messages is { Count: > 0 })
                 {
@@ -171,11 +196,13 @@ public static class OpenAiEndpoints
             {
                 // 客户端断开，尝试发送 [DONE]
                 try { await http.Response.WriteAsync("data: [DONE]\n\n", ct); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[SSE] 发送 [DONE] 失败: {ex.Message}"); }
+                _ = wsHub.PushLlmStreamEndAsync(sessionId);
             }
             catch (IOException)
             {
                 // 连接丢失，尝试发送 [DONE]
                 try { await http.Response.WriteAsync("data: [DONE]\n\n", ct); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[SSE] 发送 [DONE] 失败: {ex.Message}"); }
+                _ = wsHub.PushLlmStreamEndAsync(sessionId);
             }
             catch (Exception ex)
             {

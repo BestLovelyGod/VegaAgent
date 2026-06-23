@@ -5,6 +5,7 @@
 using System.Text;
 using System.Text.Json;
 using Agent.Core.Engine;
+using Agent.Host.Ws;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Agent.Host.Endpoints;
@@ -111,7 +112,7 @@ public static class TaskEndpoints
         .WithDescription("取消任务");
 
         // GET /api/tasks/{id}/stream — SSE 流式输出任务的最终回答
-        group.MapGet("/{id}/stream", async (string id, TaskRunner runner, HttpContext http, CancellationToken ct) =>
+        group.MapGet("/{id}/stream", async (string id, TaskRunner runner, VegaWebSocketHub wsHub, HttpContext http, CancellationToken ct) =>
         {
             var task = runner.GetTask(id);
             if (task is null)
@@ -127,16 +128,32 @@ public static class TaskEndpoints
                     var sseData = JsonSerializer.Serialize(new { content = chunk });
                     await http.Response.WriteAsync($"data: {sseData}\n\n", ct);
                     await http.Response.Body.FlushAsync(ct);
+                    
+                    // 同时通过 WS 推送
+                    _ = PushWsSafe(wsHub, id, chunk);
                 }
             }
             catch (OperationCanceledException) { }
             catch (IOException) { }
 
             await http.Response.WriteAsync("data: [DONE]\n\n", ct);
+            _ = wsHub.PushTaskUpdateAsync(id, "completed");
             return Results.Empty;
         })
         .WithName("StreamTask")
         .WithDescription("SSE 流式读取任务的最终回答");
+    }
+
+    private static async Task PushWsSafe(VegaWebSocketHub hub, string taskId, string chunk)
+    {
+        try
+        {
+            await hub.PushTaskUpdateAsync(taskId, "streaming", new { content = chunk });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WS] 任务流推送失败: {ex.Message}");
+        }
     }
 }
 
