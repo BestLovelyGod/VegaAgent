@@ -1,0 +1,138 @@
+@inherits LayoutComponentBase
+
+<div class="app-container">
+    <!-- 顶栏状态指示器 -->
+    <header class="status-bar">
+        <div class="status-bar-left">
+            <span class="app-logo">☰</span>
+            <span class="app-title">无感 · 织女星</span>
+        </div>
+        <div class="status-bar-center">
+            <span class="status-indicator status-ok">● 权限</span>
+            <button class="status-indicator @CoreStatusClass" @onclick="ToggleCoreService">
+                @CoreStatusIcon 核心 @CoreStatusText
+            </button>
+            <span class="status-indicator status-off">○ 浏览器控制</span>
+        </div>
+        <div class="status-bar-right">
+            <span class="save-status">@SaveStatus</span>
+        </div>
+    </header>
+
+    <!-- 主体区域 -->
+    <div class="main-content">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <button class="btn-new-chat" @onclick="CreateNewSession">
+                + 新对话
+            </button>
+            
+            <div class="session-list">
+                @foreach (var session in Sessions)
+                {
+                    <div class="session-item @(session.Id == ActiveSessionId ? "active" : "")"
+                         @onclick="() => SelectSession(session.Id)"
+                         @oncontextmenu="() => ShowContextMenu(session.Id)"
+                         @oncontextmenu:preventDefault>
+                        <span class="session-title">@session.Title</span>
+                        <span class="session-time">@session.UpdatedAt.ToString("MM-dd HH:mm")</span>
+                    </div>
+                }
+            </div>
+            
+            <div class="sidebar-divider"></div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="nav-section-title">📋 历史</span>
+                    <button class="nav-item @(_activeView == "history" ? "active" : "")" 
+                            @onclick='() => SwitchView("history")'>
+                        历史记录
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <span class="nav-section-title">⚙ 配置</span>
+                    <button class="nav-item @(_activeView == "agent" ? "active" : "")" 
+                            @onclick='() => SwitchView("agent")'>
+                        织女星定义
+                    </button>
+                    <button class="nav-item @(_activeView == "memory" ? "active" : "")" 
+                            @onclick='() => SwitchView("memory")'>
+                        长期记忆
+                    </button>
+                    <button class="nav-item @(_activeView == "user" ? "active" : "")" 
+                            @onclick='() => SwitchView("user")'>
+                        你的偏好
+                    </button>
+                </div>
+                
+                <button class="nav-item @(_activeView == "settings" ? "active" : "")" 
+                        @onclick='() => SwitchView("settings")'>
+                    ⚙ 设置
+                </button>
+            </div>
+        </aside>
+
+        <!-- 内容区域 -->
+        <main class="content-area">
+            @Body
+        </main>
+    </div>
+</div>
+
+@code {
+    private List<SessionInfo> Sessions { get; set; } = new();
+    private string? ActiveSessionId { get; set; }
+    private string _activeView = "chat";
+    private string CoreStatusClass = "status-off";
+    private string CoreStatusIcon = "○";
+    private string CoreStatusText = "已停止";
+    private string SaveStatus = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions()
+    {
+        // TODO: 从 API 加载会话列表
+        await Task.CompletedTask;
+    }
+
+    private async Task CreateNewSession()
+    {
+        // TODO: 创建新会话
+        await Task.CompletedTask;
+    }
+
+    private void SelectSession(string id)
+    {
+        ActiveSessionId = id;
+        _activeView = "chat";
+    }
+
+    private void ShowContextMenu(string id)
+    {
+        // TODO: 显示右键菜单
+    }
+
+    private void SwitchView(string view)
+    {
+        _activeView = view;
+    }
+
+    private async Task ToggleCoreService()
+    {
+        // TODO: 切换核心服务状态
+        await Task.CompletedTask;
+    }
+
+    private class SessionInfo
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+        public DateTime UpdatedAt { get; set; }
+    }
+}

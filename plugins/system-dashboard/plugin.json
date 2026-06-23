@@ -1,0 +1,10 @@
+{
+  "name": "system-dashboard",
+  "version": "1.0.0",
+  "description": "系统仪表盘 — 实时显示 CPU、内存、磁盘、网络状态",
+  "author": "Ignorant Vega",
+  "dependencies": [],
+  "endpoints": ["/api/dashboard"],
+  "hubs": [],
+  "entryAssembly": ""
+}

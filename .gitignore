@@ -1,0 +1,43 @@
+# 此文件由 Ignorant Star SiriusAgent 自动生成
+# Build output
+bin/
+obj/
+publish/
+
+# IDE
+.vs/
+.vscode/
+*.user
+.ignorant/
+ignorantai.v4/
+
+# User config (contains API keys)
+data/config.json
+data/llm-config.json
+data/sessions.json
+data/sessions/
+data/logs/
+data/security/
+data/quantumcore/
+data/knowledge/
+data/plugins/
+
+# SDK downloads (bundled .NET SDK + WebView2)
+Agent.Host/sdk/
+
+# Bundled tools (user-managed)
+# nssm.exe 保留，由用户自行管理
+
+# NuGet
+*.nupkg
+
+# Test/temp files
+iterations/
+temp/
+*.log
+error.txt
+*.bak
+mimotokenplantestkey
+TECH_DEBT.md
+PLAN.md
+*.ignorantai.v4

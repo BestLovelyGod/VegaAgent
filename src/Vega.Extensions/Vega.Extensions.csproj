@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Agent.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 引用开源 Agent.Core (Ignorant.Core) -->
+    <ProjectReference Include="..\..\..\..\Ignorant.Core\Agent.Core\Agent.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Vega 独有依赖: Git (LibGit2Sharp) + 插件编译 (Roslyn) -->
+    <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+</Project>

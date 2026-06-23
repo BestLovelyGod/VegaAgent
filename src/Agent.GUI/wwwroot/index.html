@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>无感 · 织女星</title>
+    <link href="css/app.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶栏状态指示器 -->
+        <header class="status-bar">
+            <div class="status-bar-left">
+                <span class="app-logo">☰</span>
+                <span class="app-title">无感 · 织女星</span>
+            </div>
+            <div class="status-bar-center">
+                <!-- Host 连接状态 -->
+                <span class="status-indicator" id="host-status">
+                    <span class="status-dot" id="host-dot"></span>
+                    <span id="host-status-text">连接中...</span>
+                </span>
+            </div>
+            <div class="status-bar-right">
+                <span class="save-status" id="save-status"></span>
+            </div>
+        </header>
+
+        <!-- 主体区域 -->
+        <div class="main-content">
+            <!-- 侧边栏 -->
+            <aside class="sidebar">
+                <button class="btn-new-chat" onclick="createNewSession()">
+                    + 新对话
+                </button>
+                
+                <div class="session-list" id="session-list">
+                    <!-- 会话列表动态填充 -->
+                </div>
+                
+                <div class="sidebar-divider"></div>
+                
+                <div class="sidebar-nav">
+                    <div class="nav-section">
+                        <span class="nav-section-title">📋 历史</span>
+                        <button class="nav-item" data-view="history" onclick="switchView('history')">
+                            历史记录
+                        </button>
+                    </div>
+                    
+                    <div class="nav-section">
+                        <span class="nav-section-title">⚙ 配置</span>
+                        <button class="nav-item" data-view="agent" onclick="switchView('agent')">
+                            织女星定义
+                        </button>
+                        <button class="nav-item" data-view="memory" onclick="switchView('memory')">
+                            长期记忆
+                        </button>
+                        <button class="nav-item" data-view="user" onclick="switchView('user')">
+                            你的偏好
+                        </button>
+                    </div>
+                    
+                    <button class="nav-item" data-view="settings" onclick="switchView('settings')">
+                        ⚙ 设置
+                    </button>
+                </div>
+            </aside>
+
+            <!-- 内容区域 -->
+            <main class="content-area" id="content-area">
+                <!-- 对话视图 (默认) -->
+                <div class="chat-container" id="view-chat">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💬</div>
+                            <div class="empty-state-text">选择或创建一个对话</div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <div class="chat-input-wrapper">
+                            <textarea class="chat-input" id="chat-input" 
+                                      placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" 
+                                      rows="1"
+                                      onkeydown="handleInputKeydown(event)"></textarea>
+                            <button class="btn-send" id="btn-send" onclick="sendMessage()" disabled>
+                                发送
+                            </button>
+                            <button class="btn-cancel" id="btn-cancel" onclick="cancelTask()" style="display:none">
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 编辑器视图 -->
+                <div class="editor-container" id="view-editor" style="display:none">
+                    <div class="editor-pane">
+                        <div class="editor-header">编辑</div>
+                        <div class="editor-content">
+                            <textarea class="editor-textarea" id="editor-textarea" 
+                                      oninput="updatePreview()"></textarea>
+                        </div>
+                    </div>
+                    <div class="editor-pane">
+                        <div class="editor-header">预览</div>
+                        <div class="editor-content">
+                            <div class="preview-content" id="preview-content"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设置视图 -->
+                <div class="settings-container" id="view-settings" style="display:none">
+                    <h2 style="margin-bottom: 24px;">⚙ 设置</h2>
+                    
+                    <div class="settings-section">
+                        <div class="settings-section-title">API 配置</div>
+                        
+                        <div class="settings-row">
+                            <span class="settings-label">当前使用:</span>
+                            <select class="settings-input" id="provider-select" onchange="switchProvider()">
+                                <option value="mimo">MiMo API (小米 API)</option>
+                                <option value="mimo-token-plan">MiMo Token Plan (小米订阅 API)</option>
+                                <option value="deepseek">DeepSeek API (深度求索 API)</option>
+                            </select>
+                        </div>
+
+                        <div id="provider-configs">
+                            <!-- 提供商配置动态填充 -->
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="settings-section-title">模型选择</div>
+                        
+                        <div class="settings-row">
+                            <span class="settings-label">当前模型:</span>
+                            <select class="settings-input" id="model-select" onchange="switchModel()">
+                                <!-- 模型选项动态填充 -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 历史视图 -->
+                <div id="view-history" style="display:none; padding: 24px;">
+                    <h2 style="margin-bottom: 24px;">📋 历史记录</h2>
+                    <input type="text" class="settings-input" placeholder="搜索历史对话..." 
+                           style="width: 100%; margin-bottom: 12px;" id="history-search"
+                           oninput="searchHistory()">
+                    <div class="history-toolbar">
+                        <button class="btn-action btn-sm" onclick="toggleSelectAllHistory()">全选</button>
+                        <button class="btn-action btn-sm" id="btn-batch-delete" onclick="batchDeleteHistory()" disabled>批量删除</button>
+                    </div>
+                    <div id="history-list"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width: 300px; padding: 12px; font-family: 'Segoe UI', sans-serif; font-size: 13px; }
+    h3 { margin: 0 0 12px; color: #1a73e8; }
+    .status { padding: 8px; border-radius: 6px; margin-bottom: 8px; }
+    .connected { background: #e8f5e9; color: #2e7d32; }
+    .disconnected { background: #fce4ec; color: #c62828; }
+    .polling { background: #fff3e0; color: #e65100; }
+    .info { color: #666; font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h3>🌐 Vega Browser Bridge</h3>
+  <div id="status" class="status">检查中...</div>
+  <div class="info">连接到 Agent: <code>http://localhost:7300</code></div>
+  <script src="popup.js"></script>
+</body>
+</html>

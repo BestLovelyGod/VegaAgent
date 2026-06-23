@@ -1,0 +1,9 @@
+﻿{
+    "path":  "C:\\Ignorant\\Star\\Vega\\tools\\browser-extension\\native-host\\NativeHost.exe",
+    "description":  "Ignorant Vega Browser Bridge",
+    "name":  "com.ignorantvega.browser",
+    "allowed_origins":  [
+                            "extension://*/"
+                        ],
+    "type":  "stdio"
+}

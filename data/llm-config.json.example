@@ -1,0 +1,24 @@
+{
+  "activeProvider": "mimo",
+  "activeModel": "mimo-v2.5",
+  "providers": {
+    "mimo": {
+      "name": "MiMo API",
+      "baseUrl": "https://api.xiaomimimo.com/v1",
+      "apiKey": "your-api-key-here",
+      "models": [
+        "mimo-v2.5",
+        "mimo-v2.5-pro"
+      ]
+    },
+    "openai": {
+      "name": "OpenAI Compatible",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "your-api-key-here",
+      "models": [
+        "gpt-4o",
+        "gpt-4o-mini"
+      ]
+    }
+  }
+}
