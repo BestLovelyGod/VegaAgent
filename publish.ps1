@@ -1,6 +1,6 @@
 ﻿# ============================================================================
 #  Ignorant Vega — 发布打包脚本
-#  用法: .\publish.ps1 [-Configuration Release] [-SelfContained] [-Version "1.0.0"]
+#  用法: .\publish.ps1 [-Configuration Release] [-SelfContained] [-IncludeSdk] [-Version "1.0.0"]
 #  作者：Ignorant Star BeidouAgent
 # ============================================================================
 
@@ -10,7 +10,9 @@ param(
     
     [switch]$SelfContained,
     
-    [string]$Version = "1.2.0",
+    [switch]$IncludeSdk,
+    
+    [string]$Version = "1.2.1",
     
     [string]$OutputDir = "publish"
 )
@@ -32,6 +34,7 @@ Write-Host ""
 Write-Host "  配置:      $Configuration"
 Write-Host "  版本:      $Version"
 Write-Host "  自包含:    $($SelfContained.IsPresent)"
+Write-Host "  内置SDK:   $($IncludeSdk.IsPresent)"
 Write-Host "  输出目录:  $PublishRoot"
 Write-Host ""
 
@@ -90,7 +93,7 @@ Write-Host ""
 
 # ── 3. 构建解决方案 ───────────────────────────────────────────────────────
 Write-Host "▶ [3/5] 构建解决方案 ($Configuration)..." -ForegroundColor Yellow
-& $dotnetCmd build $SolutionDir/Agent.slnx --configuration $Configuration --verbosity minimal --no-restore
+& $dotnetCmd build $SolutionDir/Agent.slnx --configuration $Configuration --verbosity minimal
 if ($LASTEXITCODE -ne 0) { throw "构建失败" }
 Write-Host "  ✓ 构建成功" -ForegroundColor Green
 Write-Host ""
@@ -98,7 +101,7 @@ Write-Host ""
 # ── 4. 发布各项目 ───────────────────────────────────────────────────────
 Write-Host "▶ [4/5] 发布项目..." -ForegroundColor Yellow
 
-$publishArgs = @("--configuration", $Configuration, "--verbosity", "minimal", "--no-build")
+$publishArgs = @("--configuration", $Configuration, "--verbosity", "minimal")
 if ($SelfContained) {
     $publishArgs += "--self-contained"
     $publishArgs += "-r"
@@ -126,7 +129,7 @@ Write-Host "  ✓ Agent.TUI → $tuiOut" -ForegroundColor Green
 # 发布 Agent.GUI (桌面界面)
 $guiOut = Join-Path $releaseDir "Agent.GUI"
 Write-Host "  发布 Agent.GUI..."
-$guiArgs = @("--configuration", $Configuration, "--verbosity", "minimal", "--no-build")
+$guiArgs = @("--configuration", $Configuration, "--verbosity", "minimal")
 if ($SelfContained) {
     $guiArgs += "--self-contained"
     $guiArgs += "-r"
@@ -237,6 +240,20 @@ if (Test-Path $bundledTools) {
     Write-Host "  ✓ 已复制 sdk/tools/ (aria2c + 7z)" -ForegroundColor Green
 }
 
+# 复制完整 SDK (企业离线部署包)
+if ($IncludeSdk) {
+    $sdkSource = Join-Path $SolutionDir "Agent.Host\sdk\dotnet"
+    $sdkTarget = Join-Path $releaseDir "Agent.Host\sdk\dotnet"
+    if (Test-Path $sdkSource) {
+        New-Item -ItemType Directory -Path $sdkTarget -Force | Out-Null
+        Copy-Item -Path "$sdkSource\*" -Destination $sdkTarget -Recurse -Force
+        $sdkSize = [math]::Round((Get-ChildItem $sdkTarget -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 0)
+        Write-Host "  ✓ 已复制完整 SDK ($sdkSize MB)" -ForegroundColor Green
+    } else {
+        Write-Host "  ⚠ SDK 目录不存在: $sdkSource" -ForegroundColor Yellow
+    }
+}
+
 # 复制启动脚本
 Copy-Item -Path (Join-Path $SolutionDir "start.cmd") -Destination $releaseDir -Force
 Copy-Item -Path (Join-Path $SolutionDir "start.ps1") -Destination $releaseDir -Force
@@ -257,6 +274,7 @@ Ignorant Vega v$Version
 Build Date: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Configuration: $Configuration
 Self-Contained: $($SelfContained.IsPresent)
+BundledSdk: $($IncludeSdk.IsPresent)
 "@ | Out-File -FilePath (Join-Path $releaseDir "VERSION.txt") -Encoding UTF8
 
 # 创建 ZIP 包 (使用 7z 高压缩率)
@@ -295,6 +313,9 @@ Write-Host "  发布产物:" -ForegroundColor White
 Write-Host ("    Agent.Host:    {0}  ({1} MB)" -f $hostOut, $hostSize) -ForegroundColor White
 Write-Host ("    Agent.TUI:     {0}  ({1} MB)" -f $tuiOut, $tuiSize) -ForegroundColor White
 Write-Host ("    Agent.Launcher: {0}  ({1} MB)" -f $launcherOut, $launcherSize) -ForegroundColor White
+if ($IncludeSdk) {
+    Write-Host ("    Bundled SDK:   已内置 (离线部署)") -ForegroundColor Cyan
+}
 Write-Host ""
 Write-Host "  压缩包:" -ForegroundColor White
 Write-Host ("    {0}  ({1} MB)" -f $zipPath, $zipSize) -ForegroundColor Cyan
