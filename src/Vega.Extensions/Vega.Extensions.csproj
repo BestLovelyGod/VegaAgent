@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 引用开源 Agent.Core (Ignorant.Core) -->
-    <ProjectReference Include="..\..\..\..\Ignorant.Core\Agent.Core\Agent.Core.csproj" />
+    <!-- 引用开源 Agent.Core — Git Submodule (lib/Agent.Core) -->
+    <ProjectReference Include="..\..\lib\Agent.Core\Agent.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

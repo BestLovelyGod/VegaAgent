@@ -1,0 +1,9 @@
+[submodule "lib/Agent.Core"]
+	path = lib/Agent.Core
+	url = https://github.com/BestLovelyGod/Agent.Core.git
+[submodule "lib/QuantumCore"]
+	path = lib/QuantumCore
+	url = https://github.com/BestLovelyGod/QuantumCore.git
+[submodule "lib/PaperCore"]
+	path = lib/PaperCore
+	url = https://github.com/BestLovelyGod/PaperCore.git

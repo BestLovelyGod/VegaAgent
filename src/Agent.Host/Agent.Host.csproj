@@ -15,14 +15,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 开源 Agent.Core (Ignorant.Core) -->
-    <ProjectReference Include="..\..\..\..\Ignorant.Core\Agent.Core\Agent.Core.csproj" />
+    <!-- 开源 Agent.Core — Git Submodule (lib/Agent.Core) -->
+    <ProjectReference Include="..\..\lib\Agent.Core\Agent.Core.csproj" />
     <!-- Vega 独有扩展: Plugins + Git + PluginTools -->
     <ProjectReference Include="..\Vega.Extensions\Vega.Extensions.csproj" />
-    <!-- QuantumCore: 嵌入式混合存储引擎 (替代 JSON 文件存储) -->
-    <ProjectReference Include="..\..\..\..\Science\QuantumCore\src\QuantumCore\QuantumCore.csproj" />
-    <!-- PaperCore: 知识库管理模块 -->
-    <ProjectReference Include="..\..\..\..\Science\PaperCore\src\PaperCore\PaperCore.csproj" />
+    <!-- QuantumCore: 嵌入式混合存储引擎 — Git Submodule (lib/QuantumCore) -->
+    <ProjectReference Include="..\..\lib\QuantumCore\src\QuantumCore\QuantumCore.csproj" />
+    <!-- PaperCore: 知识库管理模块 — Git Submodule (lib/PaperCore) -->
+    <ProjectReference Include="..\..\lib\PaperCore\src\PaperCore\PaperCore.csproj" />
   </ItemGroup>
 
 </Project>
