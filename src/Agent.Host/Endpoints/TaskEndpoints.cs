@@ -33,7 +33,7 @@ public static class TaskEndpoints
             var task = await runner.SubmitTaskAsync(
                 request.Message,
                 request.SessionId ?? "api",
-                ct);
+                ct: ct);
 
             return Results.Ok(new
             {
